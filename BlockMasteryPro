@@ -1,0 +1,187 @@
+import hashlib
+import json
+import pandas as pd
+import matplotlib.pyplot as plt
+from time import time
+from typing import Dict, List
+
+class Block:
+    def __init__(self, index: int, previous_hash: str, timestamp: float, transactions: List[Dict], proof: int, miner: str):
+        self.index = index
+        self.previous_hash = previous_hash
+        self.timestamp = timestamp
+        self.transactions = transactions
+        self.proof = proof
+        self.miner = miner
+
+    def to_dict(self) -> Dict:
+        return {
+            "index": self.index,
+            "previous_hash": self.previous_hash,
+            "timestamp": self.timestamp,
+            "transactions": self.transactions,
+            "proof": self.proof,
+            "miner": self.miner
+        }
+
+    def __str__(self) -> str:
+        return json.dumps(self.to_dict(), indent=4)
+
+class Blockchain:
+    def __init__(self):
+        self.chain = []
+        self.current_transactions = []
+        self.create_block(proof=100, previous_hash='1', miner='Genesis')  # Genesis block
+
+    def create_block(self, proof: int, previous_hash: str = None, miner: str = 'Anonymous') -> Block:
+        block = Block(
+            index=len(self.chain) + 1,
+            previous_hash=previous_hash or self.hash(self.chain[-1]),
+            timestamp=time(),
+            transactions=self.current_transactions,
+            proof=proof,
+            miner=miner
+        )
+        self.current_transactions = []
+        self.chain.append(block)
+        return block
+
+    def add_transaction(self, sender: str, recipient: str, amount: float, fee: float) -> int:
+        self.current_transactions.append({
+            'sender': sender,
+            'recipient': recipient,
+            'amount': amount,
+            'fee': fee
+        })
+        return self.last_block.index + 1
+
+    def proof_of_work(self, last_proof: int) -> int:
+        proof = 0
+        while not self.valid_proof(last_proof, proof):
+            proof += 1
+        return proof
+
+    def valid_proof(self, last_proof: int, proof: int) -> bool:
+        guess = f'{last_proof}{proof}'.encode()
+        guess_hash = hashlib.sha256(guess).hexdigest()
+        return guess_hash[:4] == "0000"
+
+    def hash(self, block: Block) -> str:
+        block_string = json.dumps(block.to_dict(), sort_keys=True).encode()
+        return hashlib.sha256(block_string).hexdigest()
+
+    def get_block(self, index: int) -> Block:
+        if index < 1 or index > len(self.chain):
+            return None
+        return self.chain[index - 1]
+
+    @property
+    def last_block(self) -> Block:
+        return self.chain[-1]
+
+class BlockMasteryPro:
+    def __init__(self):
+        self.blockchain = Blockchain()
+
+    def add_transaction(self, sender: str, recipient: str, amount: float, fee: float) -> str:
+        index = self.blockchain.add_transaction(sender, recipient, amount, fee)
+        return f"Transaction will be added to Block {index}"
+
+    def mine_block(self, miner: str) -> str:
+        last_proof = self.blockchain.last_block.proof
+        proof = self.blockchain.proof_of_work(last_proof)
+        self.blockchain.create_block(proof, miner=miner)
+        return f"Block mined by {miner} with proof {proof}"
+
+    def get_block_data(self, index: int) -> Dict:
+        block = self.blockchain.get_block(index)
+        if block:
+            return block.to_dict()
+        else:
+            return "Block not found"
+
+    def analyze_blocks(self) -> pd.DataFrame:
+        block_data = []
+        for block in self.blockchain.chain:
+            block_data.append({
+                "Index": block.index,
+                "Timestamp": block.timestamp,
+                "Proof": block.proof,
+                "Transaction Count": len(block.transactions),
+                "Miner": block.miner
+            })
+        df = pd.DataFrame(block_data)
+        return df
+
+    def analyze_transactions(self) -> pd.DataFrame:
+        transactions = []
+        for block in self.blockchain.chain:
+            for tx in block.transactions:
+                tx['block_index'] = block.index
+                transactions.append(tx)
+        df = pd.DataFrame(transactions)
+        return df
+
+    def plot_block_data(self):
+        df = self.analyze_blocks()
+        df.set_index('Index', inplace=True)
+        df[['Transaction Count', 'Proof']].plot(kind='bar', figsize=(12, 6))
+        plt.title('Block Data Analysis')
+        plt.xlabel('Block Index')
+        plt.ylabel('Value')
+        plt.show()
+
+    def plot_miner_statistics(self):
+        df = self.analyze_blocks()
+        miner_counts = df['Miner'].value_counts()
+        miner_counts.plot(kind='bar', figsize=(12, 6), color='purple')
+        plt.title('Blocks Mined by Each Miner')
+        plt.xlabel('Miner')
+        plt.ylabel('Number of Blocks')
+        plt.show()
+
+    def plot_transaction_fees(self):
+        df = self.analyze_transactions()
+        df.groupby('block_index')['fee'].sum().plot(kind='bar', figsize=(12, 6), color='orange')
+        plt.title('Total Transaction Fees per Block')
+        plt.xlabel('Block Index')
+        plt.ylabel('Total Fees')
+        plt.show()
+
+# Example Usage
+if __name__ == "__main__":
+    block_mastery_pro = BlockMasteryPro()
+
+    # Add transactions
+    print(block_mastery_pro.add_transaction("Alice", "Bob", 50, 0.1))
+    print(block_mastery_pro.add_transaction("Bob", "Charlie", 30, 0.05))
+
+    # Mine a block
+    print(block_mastery_pro.mine_block("Miner1"))
+
+    # Add more transactions
+    print(block_mastery_pro.add_transaction("Charlie", "Alice", 20, 0.02))
+    print(block_mastery_pro.add_transaction("Alice", "Bob", 15, 0.03))
+
+    # Mine another block
+    print(block_mastery_pro.mine_block("Miner2"))
+
+    # Get block data
+    print("\nBlock Data for Block 1:")
+    print(block_mastery_pro.get_block_data(1))
+
+    # Analyze and plot block and transaction data
+    print("\nBlock Data Analysis:")
+    print(block_mastery_pro.analyze_blocks())
+
+    print("\nTransaction Data Analysis:")
+    print(block_mastery_pro.analyze_transactions())
+
+    print("\nPlotting Block Data:")
+    block_mastery_pro.plot_block_data()
+
+    print("\nPlotting Miner Statistics:")
+    block_mastery_pro.plot_miner_statistics()
+
+    print("\nPlotting Transaction Fees:")
+    block_mastery_pro.plot_transaction_fees()
